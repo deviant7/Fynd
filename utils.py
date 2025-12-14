@@ -5,9 +5,6 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-# --- CONFIGURATION ---
-# These should be set in Streamlit Secrets for deployment
-# API_KEY = st.secrets["GOOGLE_API_KEY"] 
 
 def get_ai_analysis(rating, review_text):
     """
