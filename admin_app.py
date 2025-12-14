@@ -21,26 +21,34 @@ except Exception as e:
     st.stop()
 
 if not df.empty:
-    # Ensure proper data types
+    # --- FIX: Robust Date Conversion ---
+    # errors='coerce' turns bad data into NaT instead of crashing
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    
+    # Drop rows where timestamp is missing/invalid (cleans up empty sheet rows)
+    df = df.dropna(subset=['timestamp'])
+    
+    # Check if we still have data after cleaning
+    if df.empty:
+        st.info("No valid records found yet.")
+        st.stop()
+
+    # Ensure other types
     df['rating'] = pd.to_numeric(df['rating'], errors='coerce')
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['action'] = df['action'].fillna("")
 
     # --- 3. Top Level Metrics ---
     c1, c2, c3 = st.columns(3)
     
-    # Column 1: Total Count
     c1.metric("Total Reviews", len(df))
     
-    # Column 2: Average Rating
     avg_rating = df['rating'].mean()
     c2.metric("Avg Rating", f"{avg_rating:.1f} ⭐")
     
-    # Column 3: Latest Sentiment (FIXED to allow full text wrapping)
     latest_summary = df['summary'].iloc[-1] if 'summary' in df.columns and len(df) > 0 else "N/A"
     with c3:
         st.markdown(f"**Latest Sentiment**")
-        st.info(latest_summary) # st.info allows the text to wrap and show completely
+        st.info(latest_summary)
 
     st.divider()
 
@@ -82,10 +90,15 @@ if not df.empty:
                     st.warning(f"**Issue:** {row['summary']}\n\n**Fix:** {row['action']}")
                 with col_btn:
                     if st.button("✅ Mark as done", key=f"btn_{index}"):
-                        # Update Google Sheet to mark as resolved
                         current_action = df.at[index, 'action']
                         df.at[index, 'action'] = f"{current_action} (RESOLVED)"
-                        conn.update(worksheet="Sheet1", data=df)
+                        
+                        # Fix: Ensure timestamps are converted to strings before writing back to Sheets
+                        # Google Sheets API sometimes rejects raw datetime objects
+                        df_write = df.copy()
+                        df_write['timestamp'] = df_write['timestamp'].astype(str)
+                        
+                        conn.update(worksheet="Sheet1", data=df_write)
                         st.rerun()
             count_shown += 1
     else:
