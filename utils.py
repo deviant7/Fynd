@@ -46,16 +46,21 @@ def get_ai_analysis(rating, review_text):
 
 def load_data():
     """Loads data from the shared Google Sheet"""
+    # Create connection
     conn = st.connection("gsheets", type=GSheetsConnection)
-    # ttl=0 ensures we don't cache old data, keeping the admin view live
+    
+    # Simple read with no caching (ttl=0) to ensure live updates
     return conn.read(worksheet="Sheet1", ttl=0)
 
 def save_data(rating, review, ai_data):
     """Appends new review to the shared Google Sheet"""
     conn = st.connection("gsheets", type=GSheetsConnection)
-    existing_data = conn.read(worksheet="Sheet1", ttl=0)
     
-    new_entry = pd.DataFrame([{
+    # 1. Read existing data
+    data = conn.read(worksheet="Sheet1", ttl=0)
+    
+    # 2. Append new row
+    new_row = pd.DataFrame([{
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "rating": rating,
         "review": review,
@@ -64,6 +69,8 @@ def save_data(rating, review, ai_data):
         "action": ai_data['recommended_action']
     }])
     
-    updated_df = pd.concat([existing_data, new_entry], ignore_index=True)
+    updated_df = pd.concat([data, new_row], ignore_index=True)
+    
+    # 3. Write back to sheet
     conn.update(worksheet="Sheet1", data=updated_df)
     return True
