@@ -81,7 +81,7 @@ if not df.empty:
                     st.warning(f"**Issue:** {row['summary']}\n\n**Fix:** {row['action']}")
                 with col_btn:
                     # Unique key for each button
-                    if st.button("✅ Done", key=f"btn_{index}"):
+                    if st.button("✅ Mark as done", key=f"btn_{index}"):
                         # 1. Update the local dataframe
                         # We append (RESOLVED) to the action text so it gets filtered out next time
                         current_action = df.at[index, 'action']
