@@ -1,71 +1,69 @@
-import google.genai as genai
+import streamlit as st
+import google.generativeai as genai
 import json
 import pandas as pd
-import os
+from streamlit_gsheets import GSheetsConnection
 import datetime
 
 # --- CONFIGURATION ---
-# In production (Streamlit Cloud), these will come from st.secrets
-# locally, you can set them here or use environment variables
-API_KEY = "AIzaSyBwwe-oCG98nwb6dCNo_oCRIKlcwi7zV60" 
-DB_FILE = "reviews_data.csv"
-
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-1.5-pro')
+# These should be set in Streamlit Secrets for deployment
+# API_KEY = st.secrets["GOOGLE_API_KEY"] 
 
 def get_ai_analysis(rating, review_text):
     """
-    Generates User Reply, Admin Summary, and Action Items in ONE call.
+    Calls Gemini to generate User Reply, Summary, and Action.
     """
+    # Configure API (Ensure you set this in your main app or secrets)
+    try:
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    except:
+        return {"user_response": "System Error: API Key missing.", "admin_summary": "Error", "recommended_action": "Check Config"}
+
+    model = genai.GenerativeModel('gemini-1.5-pro')
+    
     prompt = f"""
-    You are an AI customer service manager.
-    A customer just left this review:
-    Rating: {rating}/5 Stars
+    Analyze this customer review:
+    Rating: {rating}/5
     Review: "{review_text}"
 
-    Task:
-    1. Write a polite, empathetic response to the user.
-    2. Summarize the review in 5-10 words for the admin.
-    3. Suggest one concrete 'Recommended Action' for the business to fix or improve this.
-
-    Output strictly in JSON:
+    Return JSON:
     {{
-        "user_response": "...",
-        "admin_summary": "...",
-        "recommended_action": "..."
+        "user_response": "Polite reply to customer.",
+        "admin_summary": "5-word summary for internal use.",
+        "recommended_action": "1 concrete action step."
     }}
     """
     try:
         response = model.generate_content(prompt)
         clean_json = response.text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_json)
-    except Exception as e:
+    except Exception:
         return {
             "user_response": "Thank you for your feedback!",
-            "admin_summary": "Error generating summary.",
-            "recommended_action": "Check system logs."
+            "admin_summary": "Auto-generation failed.",
+            "recommended_action": "Review manually."
         }
 
 def load_data():
-    """Loads data from the shared CSV/Database"""
-    if os.path.exists(DB_FILE):
-        return pd.read_csv(DB_FILE)
-    return pd.DataFrame(columns=["timestamp", "rating", "review", "user_response", "summary", "action"])
+    """Loads data from the shared Google Sheet"""
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    # ttl=0 ensures we don't cache old data, keeping the admin view live
+    return conn.read(worksheet="Sheet1", ttl=0)
 
 def save_data(rating, review, ai_data):
-    """Saves new submission to the shared CSV/Database"""
-    df = load_data()
+    """Appends new review to the shared Google Sheet"""
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    existing_data = conn.read(worksheet="Sheet1", ttl=0)
     
-    new_row = {
+    new_entry = pd.DataFrame([{
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "rating": rating,
         "review": review,
         "user_response": ai_data['user_response'],
         "summary": ai_data['admin_summary'],
         "action": ai_data['recommended_action']
-    }
+    }])
     
-    # In a real app with Google Sheets, you would append to the sheet here
-    updated_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    updated_df.to_csv(DB_FILE, index=False)
+    updated_df = pd.concat([existing_data, new_entry], ignore_index=True)
+    conn.update(worksheet="Sheet1", data=updated_df)
     return True
