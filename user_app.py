@@ -40,7 +40,7 @@ if submit_btn and review_text:
             st.success("Sent! Thank you.")
 
             # 3. AI Reply
-            st.info(f"💬 **Our Reply:** {ai_result['user_response']}")
+            st.info(f"💬 {ai_result['user_response']}")
 
             # Reset option for next user
             st.button("Submit Another Review", on_click=clear_text)
