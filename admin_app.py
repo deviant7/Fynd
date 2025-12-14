@@ -22,8 +22,8 @@ except Exception as e:
 
 if not df.empty:
     # --- FIX: Robust Date Conversion ---
-    # errors='coerce' turns bad data into NaT instead of crashing
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    # format='mixed' allows both 12/14/2025 AND 2025-12-14 to coexist
+    df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce')
     
     # Drop rows where timestamp is missing/invalid (cleans up empty sheet rows)
     df = df.dropna(subset=['timestamp'])
