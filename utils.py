@@ -10,7 +10,7 @@ def get_ai_analysis(rating, review_text):
     """
     Calls Gemini to generate User Reply, Summary, and Action.
     """
-    # Configure API (Ensure you set this in your main app or secrets)
+    
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     except:
