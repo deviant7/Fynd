@@ -19,7 +19,7 @@ def get_ai_analysis(rating, review_text):
     except:
         return {"user_response": "System Error: API Key missing.", "admin_summary": "Error", "recommended_action": "Check Config"}
 
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     prompt = f"""
     Analyze this customer review:
