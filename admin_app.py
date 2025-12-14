@@ -8,13 +8,12 @@ from streamlit_gsheets import GSheetsConnection
 st.set_page_config(page_title="Admin Console", page_icon="🔒", layout="wide")
 st.title("🔒 Live Feedback Monitor")
 
-# --- 1. Top Refresh Button (Restored Position) ---
+# --- 1. Top Refresh Button ---
 if st.button("Refresh Data"):
     st.rerun()
 
 # --- 2. Load Data ---
 try:
-    # We use the connection directly here to allow writing updates back to the sheet
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(worksheet="Sheet1", ttl=0)
 except Exception as e:
@@ -25,19 +24,23 @@ if not df.empty:
     # Ensure proper data types
     df['rating'] = pd.to_numeric(df['rating'], errors='coerce')
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-    # Fill NaN values to avoid errors
     df['action'] = df['action'].fillna("")
 
     # --- 3. Top Level Metrics ---
     c1, c2, c3 = st.columns(3)
+    
+    # Column 1: Total Count
     c1.metric("Total Reviews", len(df))
     
+    # Column 2: Average Rating
     avg_rating = df['rating'].mean()
     c2.metric("Avg Rating", f"{avg_rating:.1f} ⭐")
     
+    # Column 3: Latest Sentiment (FIXED to allow full text wrapping)
     latest_summary = df['summary'].iloc[-1] if 'summary' in df.columns and len(df) > 0 else "N/A"
-    c3.metric("Latest Sentiment", str(latest_summary)[:30] + "...")
+    with c3:
+        st.markdown(f"**Latest Sentiment**")
+        st.info(latest_summary) # st.info allows the text to wrap and show completely
 
     st.divider()
 
@@ -64,34 +67,25 @@ if not df.empty:
 
     st.divider()
 
-    # --- 5. Actionable Insights (With Persistence) ---
+    # --- 5. Actionable Insights (Persistent) ---
     st.subheader("⚠️ Recommended Actions")
     
     # Filter: Low rating AND not already resolved
-    # We check if "(RESOLVED)" is already in the action text
     issues = df[(df['rating'] <= 3) & (~df['action'].str.contains(r"\(RESOLVED\)", na=False))].copy()
     
     if not issues.empty:
         count_shown = 0
-        # Sort by latest first
         for index, row in issues.sort_values(by="timestamp", ascending=False).iterrows():
             with st.container():
                 col_msg, col_btn = st.columns([4, 1])
                 with col_msg:
                     st.warning(f"**Issue:** {row['summary']}\n\n**Fix:** {row['action']}")
                 with col_btn:
-                    # Unique key for each button
                     if st.button("✅ Mark as done", key=f"btn_{index}"):
-                        # 1. Update the local dataframe
-                        # We append (RESOLVED) to the action text so it gets filtered out next time
+                        # Update Google Sheet to mark as resolved
                         current_action = df.at[index, 'action']
                         df.at[index, 'action'] = f"{current_action} (RESOLVED)"
-                        
-                        # 2. Write the UPDATED dataframe back to Google Sheets
-                        # This makes the "Done" status persistent across refreshes
                         conn.update(worksheet="Sheet1", data=df)
-                        
-                        # 3. Rerun to refresh the UI immediately
                         st.rerun()
             count_shown += 1
     else:
